@@ -24,7 +24,7 @@ def plot_blackjack_values(V):
         ax.set_zlabel('State Value')
         ax.view_init(ax.elev, -120)
 
-    fig = plt.figure(figsize=(20, 20))
+    fig = plt.figure(figsize=(10, 10))
     ax = fig.add_subplot(211, projection='3d')
     ax.set_title('Usable Ace')
     get_figure(True, ax)
@@ -58,7 +58,7 @@ def plot_policy(policy):
         cbar = plt.colorbar(surf, ticks=[0,1], cax=cax)
         cbar.ax.set_yticklabels(['0 (STICK)','1 (HIT)'])
             
-    fig = plt.figure(figsize=(15, 15))
+    fig = plt.figure(figsize=(10, 10))
     ax = fig.add_subplot(121)
     ax.set_title('Usable Ace')
     get_figure(True, ax)
