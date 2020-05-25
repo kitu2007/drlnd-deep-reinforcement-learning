@@ -103,6 +103,10 @@ ENV/
 # mypy
 .mypy_cache/
 
+# apps
+*.app
+*.app.zip
+
 # emacs
 # -*- mode: gitignore; -*-
 *~
