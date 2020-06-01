@@ -18,7 +18,7 @@ GAMMA = 0.99
 TAU = 1e-3
 LR_ACTOR = 1e-4 # Learning rate of actor
 LR_CRITIC = 1e-3 # Learning rate of the critic
-WEIGHT_DECAY = 0 # L2 weight decay (regularization)
+WEIGHT_DECAY = 1e-3 # L2 weight decay (regularization)
 
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -26,7 +26,7 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 
 class Agent():
-    def __init__(self, state_size, action_size, random_seed):
+    def __init__(self, state_size, action_size, random_seed, num_agents, use_batch_norm):
         """
         Initialize an Agent Object
 
@@ -41,19 +41,19 @@ class Agent():
         self.seed = random.seed(random_seed)
 
 
-        self.actor_target = Actor(self.state_size, self.action_size, random_seed).to(device)
-        self.actor_local  = Actor(self.state_size, self.action_size, random_seed).to(device)
+        self.actor_target = Actor(self.state_size, self.action_size, random_seed, use_batch_norm=use_batch_norm).to(device)
+        self.actor_local  = Actor(self.state_size, self.action_size, random_seed, use_batch_norm=use_batch_norm).to(device)
         self.actor_optimizer = optim.Adam(self.actor_local.parameters(), lr=LR_ACTOR)
 
-        self.critic_target = Critic(self.state_size, self.action_size, random_seed).to(device)
-        self.critic_local  = Critic(self.state_size, self.action_size, random_seed).to(device)
+        self.critic_target = Critic(self.state_size, self.action_size, random_seed, use_batch_norm=use_batch_norm).to(device)
+        self.critic_local  = Critic(self.state_size, self.action_size, random_seed, use_batch_norm=use_batch_norm).to(device)
         self.critic_optimizer = optim.Adam(self.critic_local.parameters(), lr=LR_CRITIC,
                                            weight_decay=WEIGHT_DECAY)
 
         self.memory_buffer = ReplayBuffer(BUFFER_SIZE, BATCH_SIZE, random_seed)
-        self.noise = NormalNoise(self.action_size, random_seed)
-
-
+        self.noise = ULNoise(self.action_size, random_seed)
+        self.learn_step = 0
+        self.num_agents = num_agents
 
     def act(self, state, add_noise=True):
         """what is the policy based on which it acts. at every step it acts"""
@@ -62,12 +62,10 @@ class Agent():
         self.actor_local.eval()
         with torch.no_grad():
             action = self.actor_local(state).cpu().data.numpy()
-
-        # train the nets
+        # put the net to training mode
         self.actor_local.train()
         if add_noise:
             action += self.noise.sample()
-
         return np.clip(action, -1, 1)
 
     def reset(self):
@@ -76,9 +74,11 @@ class Agent():
     def step(self, state, action, reward, next_state, done):
          #insert into the memory buffer
         self.memory_buffer.add(state, action, reward, next_state, done)
+        self.learn_step += 1
         if len(self.memory_buffer) > BATCH_SIZE:
-             experiences = self.memory_buffer.sample()
-             self.learn(experiences, GAMMA)
+        #if self.learn_step % (self.num_agents//2) == 0:
+            experiences = self.memory_buffer.sample()
+            self.learn(experiences, GAMMA)
 
     def learn(self, experiences, gamma):
         # so lets see how the learning works. First it works from experiences.
@@ -97,6 +97,7 @@ class Agent():
         # minimize loss
         self.critic_optimizer.zero_grad()
         critic_loss.backward()
+        torch.nn.utils.clip_grad_norm(self.critic_local.parameters(),1)
         self.critic_optimizer.step()
 
         # ----- train the actor method
@@ -107,6 +108,7 @@ class Agent():
         # minimise loss
         self.actor_optimizer.zero_grad()
         actor_loss.backward()
+        torch.nn.utils.clip_grad_norm(self.critic_local.parameters(),1)
         self.actor_optimizer.step()
 
         ## soft update. update target networks.
@@ -120,7 +122,7 @@ class Agent():
         for target_param, local_param in zip(target_model.parameters(), local_model.parameters()):
             target_param.data.copy_(tau*local_param.data + (1.0-tau)*target_param.data)
 
-class NormalNoise:
+class ULNoise:
     def __init__(self, size, seed, mu=0.0, theta=0.15, sigma = 0.2):
         self.mu = mu * np.ones(size)
         self.theta = theta
@@ -138,6 +140,17 @@ class NormalNoise:
         return self.state
 
 
+class NormalNoise:
+    def __init__(self, size, seed, mu=0.0, sigma = 0.2):
+        self.mu = mu * np.ones(size)
+        self.sigma = sigma
+        self.seed = random.seed(seed)
+        self.reset()
+
+    def sample(self):
+        noise = self.mu + self.sigma * np.random.randn(len(x))
+        return noise
+
 class ReplayBuffer:
     def __init__(self, max_len, batch_size, seed):
         """Pass """
@@ -149,8 +162,9 @@ class ReplayBuffer:
 
     def add(self, state, action, reward, new_state, done):
         """insert an experience into the memory buffer"""
-        e = self.experience(state, action, reward, new_state, done)
-        self.memory.append(e)
+        for i in range(state.shape[0]):
+            e = self.experience(state[i], action[i], reward[i], new_state[i], done[i])
+            self.memory.append(e)
 
 
     def sample(self):

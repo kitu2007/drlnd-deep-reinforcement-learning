@@ -1,0 +1,7 @@
+
+0. Bug in critic..It was only giving one output. needed to give 4.
+1 Added support for batch norm
+2. clipped the gradients as suggested.
+3. try to see if you can run on google cloud
+1. make it to multiple agent. see if that speeds it up.
+

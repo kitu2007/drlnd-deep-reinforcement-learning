@@ -13,13 +13,13 @@ from IPython import embed
 import ipdb
 
 
-from ddpg_agent2 import Agent
+from ddpg_agent import Agent
 
 from unityagents import UnityEnvironment
 import numpy as np
 
 # Instantiate the environment
-env = UnityEnvironment(file_name='Reacher1.app')
+env = UnityEnvironment(file_name='Reacher20.app')
 
 # get the default brain
 brain_name = env.brain_names[0]
@@ -76,16 +76,18 @@ def ddpg(agent, n_episodes=20, max_t=1000):
     for i_episode in range(1, n_episodes+1):
         env_info = env.reset(train_mode=True)[brain_name]
         states = env_info.vector_observations
+        ipdb.set_trace()
         score = np.zeros(num_agents)
         for t in range(max_t):
             actions  = agent.act(states)
             actions = np.clip(actions, -1, 1)
             env_info = env.step(actions)[brain_name]
-            next_states = env_info.vector_observations
             rewards = env_info.rewards
-            dones = env_info.local_done
             score += env_info.rewards
-            agent.step(states, actions,rewards, next_states, dones)
+            next_states = env_info.vector_observations
+            dones = env_info.local_done
+            #ipdb.set_trace()
+            agent.step(states, actions, rewards, next_states, dones)
             states = next_states
             if np.any(dones):
                 break
@@ -95,18 +97,19 @@ def ddpg(agent, n_episodes=20, max_t=1000):
         print('\rEpisode {}\tAverage Score: {:.2f}'.format(i_episode, np.mean(scores_window)), end="")
         if i_episode % 100 == 0:
             print('\rEpisode {}\tAverage Score: {:.2f}'.format(i_episode, np.mean(scores_window)))
-        if np.mean(scores_window)>=300.0:
+        if np.mean(scores_window)>=30.0:
             print('\nEnvironment solved in {:d} episodes!\tAverage Score: {:.2f}'.format(i_episode-100, np.mean(scores_window)))
-            torch.save(agent.qnetwork_local.state_dict(), 'checkpoint.pth')
+            torch.save(agent.actor_local.state_dict(), 'actor_checkpoint_1.pth')
+            torch.save(agent.critic_local.state_dict(), 'critic_checkpoint_1.pth')
             break
     return scores
 
 
-agent = Agent(state_size, action_size, random_seed=2)
+agent = Agent(state_size, action_size, random_seed=2, num_agents=20, use_batch_norm=True)
 
 
 if train_agent:
-    scores = ddpg(agent, n_episodes=1000, max_t=500)
+    scores = ddpg(agent, n_episodes=300)
     ipdb.set_trace()
     #plot the scores.
     fig = plt.figure()
