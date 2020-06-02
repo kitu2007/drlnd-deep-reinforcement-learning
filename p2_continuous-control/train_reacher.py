@@ -66,7 +66,7 @@ if watch_untrained_agent:
 
 
 
-def ddpg(agent, n_episodes=20, max_t=350):
+def ddpg(agent, n_episodes=20, max_t=600):
     """
     DDPG Agent
 
@@ -109,7 +109,7 @@ agent = Agent(state_size, action_size, random_seed=2, num_agents=20, use_batch_n
 
 
 if train_agent:
-    scores = ddpg(agent, n_episodes=1000)
+    scores = ddpg(agent, n_episodes=10000)
     ipdb.set_trace()
     #plot the scores.
     fig = plt.figure()
