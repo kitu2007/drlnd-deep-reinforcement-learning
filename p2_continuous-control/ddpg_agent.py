@@ -23,7 +23,12 @@ clip_grad_value = 5.0
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-
+def normalize_data(x,axis=0, eps=1e-5):
+    ipdb.set_trace()
+    mu = x.mean()
+    sigma = x.std() + eps
+    x = (x - mu[:,np.newaxis])/sigma[:,np.newaxis]
+    return x, mu, sigma
 
 class Agent():
     def __init__(self, state_size, action_size, random_seed, num_agents, use_batch_norm):
@@ -81,8 +86,9 @@ class Agent():
     def learn(self, experiences, gamma):
         # so lets see how the learning works. First it works from experiences.
         # agent act based on local network and uses target network (domain shift)
-
+        ipdb.set_trace()
         states, actions, rewards, next_states, dones = experiences
+        rewards_norm = normalize_data(rewards)
 
         # ----- train the critic method
         actions_next = self.actor_target(next_states)
