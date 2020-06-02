@@ -29,7 +29,6 @@ class Critic(nn.Module):
         if self.use_batch_norm:
             self.bn0 = nn.BatchNorm1d(state_size)
             self.bn1 = nn.BatchNorm1d(fc1)
-            self.bn2 = nn.BatchNorm1d(fc2)
         self.reset_parameters()
 
     def reset_parameters(self):
@@ -41,7 +40,7 @@ class Critic(nn.Module):
         if self.use_batch_norm:
             xs = F.relu(self.bn1(self.fc1(self.bn0(state))))
             x = torch.cat((xs, action), dim=1)
-            x = F.relu(self.bn2(self.fc2(x)))
+            x = F.relu(self.fc2(x))
         else:
             xs = F.relu(self.fc1(state))
             x = torch.cat((xs, action), dim=1)

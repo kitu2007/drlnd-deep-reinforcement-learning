@@ -13,13 +13,13 @@ import ipdb
 #from ipdb import IPython
 
 BUFFER_SIZE = int(1e6)
-BATCH_SIZE = 128
+BATCH_SIZE = 64
 GAMMA = 0.99
 TAU = 1e-3
-LR_ACTOR = 1e-3 # Learning rate of actor
-LR_CRITIC = 1e-2 # Learning rate of the critic
-WEIGHT_DECAY = 0 # L2 weight decay (regularization)
-clip_grad_value = 5.0
+LR_ACTOR = 1e-4 # Learning rate of actor
+LR_CRITIC = 1e-3 # Learning rate of the critic
+WEIGHT_DECAY = 0.001 # L2 weight decay (regularization)
+clip_grad_value = 1.0
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
@@ -106,7 +106,7 @@ class Agent():
         # minimise loss
         self.actor_optimizer.zero_grad()
         actor_loss.backward()
-        torch.nn.utils.clip_grad_norm_(self.critic_local.parameters(),clip_grad_value)
+        # torch.nn.utils.clip_grad_norm_(self.actor_local.parameters(),clip_grad_value)
         self.actor_optimizer.step()
 
         ## soft update. update target networks.
