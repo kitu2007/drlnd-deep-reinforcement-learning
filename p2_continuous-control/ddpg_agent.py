@@ -12,14 +12,14 @@ import torch.optim as optim
 import ipdb
 #from ipdb import IPython
 
-BUFFER_SIZE = int(1e5)
+BUFFER_SIZE = int(1e6)
 BATCH_SIZE = 128
 GAMMA = 0.99
 TAU = 1e-3
-LR_ACTOR = 1e-4 # Learning rate of actor
-LR_CRITIC = 1e-3 # Learning rate of the critic
-WEIGHT_DECAY = 1e-3 # L2 weight decay (regularization)
-
+LR_ACTOR = 1e-3 # Learning rate of actor
+LR_CRITIC = 1e-2 # Learning rate of the critic
+WEIGHT_DECAY = 0 # L2 weight decay (regularization)
+clip_grad_value = 5.0
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
@@ -55,6 +55,13 @@ class Agent():
         self.learn_step = 0
         self.num_agents = num_agents
 
+    def step(self, state, action, reward, next_state, done):
+         #insert into the memory buffer
+        self.memory_buffer.add(state, action, reward, next_state, done)
+        if len(self.memory_buffer) > BATCH_SIZE:
+            experiences = self.memory_buffer.sample()
+            self.learn(experiences, GAMMA)
+
     def act(self, state, add_noise=True):
         """what is the policy based on which it acts. at every step it acts"""
         # agent takes an action based on policy
@@ -71,44 +78,35 @@ class Agent():
     def reset(self):
         self.noise.reset()
 
-    def step(self, state, action, reward, next_state, done):
-         #insert into the memory buffer
-        self.memory_buffer.add(state, action, reward, next_state, done)
-        self.learn_step += 1
-        if len(self.memory_buffer) > BATCH_SIZE:
-        #if self.learn_step % (self.num_agents//2) == 0:
-            experiences = self.memory_buffer.sample()
-            self.learn(experiences, GAMMA)
-
     def learn(self, experiences, gamma):
         # so lets see how the learning works. First it works from experiences.
         # agent act based on local network and uses target network (domain shift)
+
         states, actions, rewards, next_states, dones = experiences
 
         # ----- train the critic method
-        #ipdb.set_trace()
         actions_next = self.actor_target(next_states)
         Q_targets_next = self.critic_local(next_states, actions_next)
         Q_targets = rewards + (gamma * Q_targets_next * (1-dones))
-
         Q_expected = self.critic_local(states, actions)
+        Q_targets = Q_targets.detach()
         critic_loss = F.mse_loss(Q_expected, Q_targets)
 
         # minimize loss
         self.critic_optimizer.zero_grad()
         critic_loss.backward()
-        torch.nn.utils.clip_grad_norm(self.critic_local.parameters(),1)
+        torch.nn.utils.clip_grad_norm_(self.critic_local.parameters(),clip_grad_value)
         self.critic_optimizer.step()
 
         # ----- train the actor method
         # update the actor
         actions_pred = self.actor_local(states)
         # mean of the action_pred of that should be zero
-        actor_loss = -self.critic_local(states, actions_pred).mean()
+        actor_loss = -self.critic_local(states.detach(), actions_pred).mean()
         # minimise loss
         self.actor_optimizer.zero_grad()
         actor_loss.backward()
-        torch.nn.utils.clip_grad_norm(self.critic_local.parameters(),1)
+        torch.nn.utils.clip_grad_norm_(self.critic_local.parameters(),clip_grad_value)
         self.actor_optimizer.step()
 
         ## soft update. update target networks.

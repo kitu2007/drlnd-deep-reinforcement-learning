@@ -19,7 +19,7 @@ from unityagents import UnityEnvironment
 import numpy as np
 
 # Instantiate the environment
-env = UnityEnvironment(file_name='Reacher20.app')
+env = UnityEnvironment(file_name='Reacher_Linux/Reacher.x86_64')
 
 # get the default brain
 brain_name = env.brain_names[0]
@@ -66,7 +66,7 @@ if watch_untrained_agent:
 
 
 
-def ddpg(agent, n_episodes=20, max_t=1000):
+def ddpg(agent, n_episodes=20, max_t=350):
     """
     DDPG Agent
 
@@ -76,7 +76,6 @@ def ddpg(agent, n_episodes=20, max_t=1000):
     for i_episode in range(1, n_episodes+1):
         env_info = env.reset(train_mode=True)[brain_name]
         states = env_info.vector_observations
-        ipdb.set_trace()
         score = np.zeros(num_agents)
         for t in range(max_t):
             actions  = agent.act(states)
@@ -94,11 +93,12 @@ def ddpg(agent, n_episodes=20, max_t=1000):
 
         scores_window.append(score)
         scores.append(score)
-        print('\rEpisode {}\tAverage Score: {:.2f}'.format(i_episode, np.mean(scores_window)), end="")
-        if i_episode % 100 == 0:
-            print('\rEpisode {}\tAverage Score: {:.2f}'.format(i_episode, np.mean(scores_window)))
+        print('\rEpisode {}\tAverage Score: {:.4f}'.format(i_episode, np.mean(scores_window)), end="")
+        if i_episode % 10 == 0:
+            print('\rEpisode {}\tAverage Score: {:.4f}'.format(i_episode, np.mean(scores_window)))
+            #print(scores_window)
         if np.mean(scores_window)>=30.0:
-            print('\nEnvironment solved in {:d} episodes!\tAverage Score: {:.2f}'.format(i_episode-100, np.mean(scores_window)))
+            print('\nEnvironment solved in {:d} episodes!\tAverage Score: {:.4f}'.format(i_episode-100, np.mean(scores_window)))
             torch.save(agent.actor_local.state_dict(), 'actor_checkpoint_1.pth')
             torch.save(agent.critic_local.state_dict(), 'critic_checkpoint_1.pth')
             break
@@ -109,7 +109,7 @@ agent = Agent(state_size, action_size, random_seed=2, num_agents=20, use_batch_n
 
 
 if train_agent:
-    scores = ddpg(agent, n_episodes=300)
+    scores = ddpg(agent, n_episodes=1000)
     ipdb.set_trace()
     #plot the scores.
     fig = plt.figure()
