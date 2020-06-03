@@ -7,19 +7,23 @@ import torch
 import numpy as np
 from collections import deque
 from IPython import embed
+import logging
 
 
 #!/usr/bin/env python
 import ipdb
-
+import ddpg_agent
 
 from ddpg_agent import Agent
 
 from unityagents import UnityEnvironment
 import numpy as np
 
-# Instantiate the environment
+# Instantiate the environmen
+#env = UnityEnvironment(file_name='Reacher1.app')
+#env = UnityEnvironment(file_name='Reacher1.app')
 env = UnityEnvironment(file_name='Reacher_Linux/Reacher.x86_64')
+#env = UnityEnvironment(file_name='Reacher_Linux_NoVis/Reacher.x86_64')
 
 # get the default brain
 brain_name = env.brain_names[0]
@@ -65,6 +69,14 @@ if watch_untrained_agent:
     print('Total score (averaged over agents) this episode: {}'.format(np.mean(scores)))
 
 
+ipdb.set_trace()
+
+ddpg_agent.write_config_files(filename='config.txt')
+json_config = ddpg_agent.write_config_files_json(filename='json_config.txt')
+log_fname = ddpg_agent.init_logger()
+logging.basicConfig(filename=log_fname,level=logging.DEBUG)
+json_log = ddpg_agent.json_logger(filename='json_logger.json')
+
 
 def ddpg(agent, n_episodes=20, max_t=600):
     """
@@ -93,9 +105,14 @@ def ddpg(agent, n_episodes=20, max_t=600):
 
         scores_window.append(score)
         scores.append(score)
-        print('\rEpisode {}\tAverage Score: {:.4f}'.format(i_episode, np.mean(scores_window)), end="")
+        mean_score = np.mean(scores_window) + 0.00001
+        
+        print('\rEpisode {}\tAverage Score: {:.4f}'.format(i_episode, mean_score), end="")
         if i_episode % 10 == 0:
-            print('\rEpisode {}\tAverage Score: {:.4f}'.format(i_episode, np.mean(scores_window)))
+            print('\rEpisode {}\tAverage Score: {:.4f}'.format(i_episode, mean_score))
+            json_log.update({i_episode:mean_score})
+            logging.info('\rEpisode {}\tAverage Score: {:.4f}'.format(i_episode, mean_score))
+
             #print(scores_window)
         if np.mean(scores_window)>=30.0:
             print('\nEnvironment solved in {:d} episodes!\tAverage Score: {:.4f}'.format(i_episode-100, np.mean(scores_window)))
@@ -103,6 +120,8 @@ def ddpg(agent, n_episodes=20, max_t=600):
             torch.save(agent.critic_local.state_dict(), 'critic_checkpoint_1.pth')
             break
     return scores
+
+
 
 
 agent = Agent(state_size, action_size, random_seed=2, num_agents=20, use_batch_norm=True)

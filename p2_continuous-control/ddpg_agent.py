@@ -1,7 +1,7 @@
 import numpy as np
 import random
 import copy
-from collections import namedtuple, deque
+from collections import namedtuple, deque, OrderedDict
 
 from  model import Actor, Critic
 
@@ -10,7 +10,10 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 import ipdb
+import logging
+import json
 #from ipdb import IPython
+from datetime import datetime
 
 BUFFER_SIZE = int(1e6)
 BATCH_SIZE = 64
@@ -20,11 +23,81 @@ LR_ACTOR = 1e-4 # Learning rate of actor
 LR_CRITIC = 1e-3 # Learning rate of the critic
 WEIGHT_DECAY = 0.001 # L2 weight decay (regularization)
 clip_grad_value = 1.0
+LEARN_AFTER_N_STEPS = 20
+NUM_LEARN_STEPS = 10
+
+print_var_list = ['BUFFER_SIZE', 'BATCH_SIZE', 'TAU', 'LR_ACTOR', 'LR_CRITIC', 'WEIGHT_DECAY', 'clip_grad_value', 'LEARN_AFTER_N_STEPS', 'NUM_LEARN_STEPS']
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
+
+def get_current_date_time(just_get_day=False):
+    # datetime object containing current date and time
+    now = datetime.now()
+    if just_get_day:
+        dt_string = now.strftime("%d_%m_%Y")
+    else:
+        dt_string = now.strftime("%d_%m_%Y_%H:%M")
+    return dt_string
+
+class json_logger:
+
+    def __init__(self,dirname = 'OutFiles', filename='json_logger.json'):
+        self.fname =   dirname + '/' + get_current_date_time() + '_' + filename
+        json_object = OrderedDict()
+        self.add(json_object)
+
+
+    def add(self, values):
+        json_object = values
+        with open(self.fname, "w") as outfile:
+            json.dump(json_object, outfile, indent = 4, ensure_ascii = False)
+
+    def update(self, values):
+        with open(self.fname, 'r') as openfile:
+            json_object = json.load(openfile)
+
+        json_object.update(values)
+        with open(self.fname, 'w') as outfile:
+            json.dump(json_object, outfile, indent = 4, ensure_ascii = False)
+
+
+def init_logger(dirname = 'OutFiles', filename='logger.txt', level=logging.DEBUG):
+    fname =  dirname + '/' + get_current_date_time() + '_' + filename
+    return fname
+
+
+
+def write_config_files_json(dirname = 'OutFiles', filename='json_config.txt', var_list=print_var_list):
+    variables = globals()
+    jsonData = OrderedDict()
+    for var in var_list:
+        #ipdb.set_trace()
+        if var in print_var_list and var in variables:
+            jsonData[var] = variables[var]
+
+    filename =  dirname + '/' + get_current_date_time() + '_' + filename
+    with open(filename, 'w') as outfile:
+        json.dump(jsonData, outfile, sort_keys = True, indent = 4,
+                  ensure_ascii = False)
+
+    return jsonData
+
+def write_config_files(dirname = 'OutFiles', filename='config.txt', var_list=print_var_list):
+    variables = globals()
+    filename =  dirname + '/' + get_current_date_time() + '_' + filename
+    outfile = open(filename, 'w')
+    outfile.write("********** START CONFIG VALUES***********")
+    for var in var_list:
+        if var in print_var_list and var in variables:
+            outfile.write('{}={}\n'.format(var, str(variables[var])))
+
+    outfile.write("**********END CONFIG VALUES***********")
+    outfile.close()
+    return
+
+
 def normalize_data(x,axis=0, eps=1e-5):
-    ipdb.set_trace()
     mu = x.mean()
     sigma = x.std() + eps
     x = (x - mu[:,np.newaxis])/sigma[:,np.newaxis]
@@ -57,15 +130,18 @@ class Agent():
 
         self.memory_buffer = ReplayBuffer(BUFFER_SIZE, BATCH_SIZE, random_seed)
         self.noise = ULNoise(self.action_size, random_seed)
-        self.learn_step = 0
+        self.nsteps = 0
         self.num_agents = num_agents
 
     def step(self, state, action, reward, next_state, done):
          #insert into the memory buffer
         self.memory_buffer.add(state, action, reward, next_state, done)
+        self.nsteps +=1
         if len(self.memory_buffer) > BATCH_SIZE:
             experiences = self.memory_buffer.sample()
-            self.learn(experiences, GAMMA)
+            if self.nsteps % LEARN_AFTER_N_STEPS == 0:
+                for i in range(NUM_LEARN_STEPS):
+                    self.learn(experiences, GAMMA)
 
     def act(self, state, add_noise=True):
         """what is the policy based on which it acts. at every step it acts"""
@@ -86,9 +162,9 @@ class Agent():
     def learn(self, experiences, gamma):
         # so lets see how the learning works. First it works from experiences.
         # agent act based on local network and uses target network (domain shift)
-        ipdb.set_trace()
+        #ipdb.set_trace()
         states, actions, rewards, next_states, dones = experiences
-        rewards_norm = normalize_data(rewards)
+        # rewards_norm = normalize_data(rewards)
 
         # ----- train the critic method
         actions_next = self.actor_target(next_states)
