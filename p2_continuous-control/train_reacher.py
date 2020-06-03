@@ -12,8 +12,8 @@ import logging
 
 #!/usr/bin/env python
 import ipdb
-import ddpg_agent
 
+import utils
 from ddpg_agent import Agent
 
 from unityagents import UnityEnvironment
@@ -69,11 +69,10 @@ if watch_untrained_agent:
     print('Total score (averaged over agents) this episode: {}'.format(np.mean(scores)))
 
 
-ddpg_agent.write_config_files(filename='config.txt')
-json_config = ddpg_agent.write_config_files_json(filename='json_config.txt')
-log_fname = ddpg_agent.init_logger()
+# write config file and training scores
+log_fname = utils.logger_fname()
 logging.basicConfig(filename=log_fname,level=logging.DEBUG)
-json_log = ddpg_agent.json_logger(filename='json_logger.json')
+json_log = utils.json_logger(filename='json_logger.json')
 
 
 def ddpg(agent, n_episodes=20, max_t=600):
@@ -87,6 +86,7 @@ def ddpg(agent, n_episodes=20, max_t=600):
         env_info = env.reset(train_mode=True)[brain_name]
         states = env_info.vector_observations
         score = np.zeros(num_agents)
+        agent.reset()
         for t in range(max_t):
             actions  = agent.act(states)
             actions = np.clip(actions, -1, 1)
@@ -95,7 +95,7 @@ def ddpg(agent, n_episodes=20, max_t=600):
             score += env_info.rewards
             next_states = env_info.vector_observations
             dones = env_info.local_done
-            #ipdb.set_trace()
+
             agent.step(states, actions, rewards, next_states, dones)
             states = next_states
             if np.any(dones):
@@ -109,7 +109,7 @@ def ddpg(agent, n_episodes=20, max_t=600):
         if i_episode % 10 == 0:
             print('\rEpisode {}\tAverage Score: {:.4f}'.format(i_episode, mean_score))
             json_log.update({i_episode:mean_score})
-            logging.info('\rEpisode {}\tAverage Score: {:.4f}'.format(i_episode, mean_score))
+            #logging.info('\rEpisode {}\tAverage Score: {:.4f}'.format(i_episode, mean_score))
 
             #print(scores_window)
         if np.mean(scores_window)>=30.0:
@@ -122,7 +122,7 @@ def ddpg(agent, n_episodes=20, max_t=600):
 
 
 
-agent = Agent(state_size, action_size, random_seed=2, num_agents=20, use_batch_norm=True)
+agent = Agent(state_size, action_size, random_seed=2, num_agents=num_agents, use_batch_norm=True)
 
 
 if train_agent:

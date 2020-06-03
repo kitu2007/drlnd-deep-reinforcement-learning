@@ -14,89 +14,26 @@ import logging
 import json
 #from ipdb import IPython
 from datetime import datetime
+import utils
 
 BUFFER_SIZE = int(1e6)
-BATCH_SIZE = 128
+BATCH_SIZE = 64
 GAMMA = 0.99
 TAU = 1e-3
 LR_ACTOR = 1e-4 # Learning rate of actor
 LR_CRITIC = 1e-3 # Learning rate of the critic
-WEIGHT_DECAY = 0.001 # L2 weight decay (regularization)
+WEIGHT_DECAY = 0.0001 # L2 weight decay (regularization)
 clip_grad_value = 1.0
 LEARN_AFTER_N_STEPS = 20
 NUM_LEARN_STEPS = 10
 NOISE_DECAY=0.001
+UL_THETA = 0.15
+UL_SIGMA = 0.2
 
-print_var_list = ['BUFFER_SIZE', 'BATCH_SIZE', 'TAU', 'LR_ACTOR', 'LR_CRITIC', 'WEIGHT_DECAY', 'clip_grad_value', 'LEARN_AFTER_N_STEPS', 'NUM_LEARN_STEPS',
-                  'NOISE_DECAY']
+print_var_list = ['BUFFER_SIZE', 'BATCH_SIZE', 'TAU', 'LR_ACTOR', 'LR_CRITIC', 'WEIGHT_DECAY', 'clip_grad_value', 'LEARN_AFTER_N_STEPS', 'NUM_LEARN_STEPS', 'NOISE_DECAY', 'UL_THETA', 'UL_SIGMA']
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-
-def get_current_date_time(just_get_day=False):
-    # datetime object containing current date and time
-    now = datetime.now()
-    if just_get_day:
-        dt_string = now.strftime("%d_%m_%Y")
-    else:
-        dt_string = now.strftime("%d_%m_%Y_%H:%M")
-    return dt_string
-
-class json_logger:
-
-    def __init__(self,dirname = 'OutFiles', filename='json_logger.json'):
-        self.fname =   dirname + '/' + get_current_date_time() + '_' + filename
-        json_object = OrderedDict()
-        self.add(json_object)
-
-
-    def add(self, values):
-        json_object = values
-        with open(self.fname, "w") as outfile:
-            json.dump(json_object, outfile, indent = 4, ensure_ascii = False)
-
-    def update(self, values):
-        with open(self.fname, 'r') as openfile:
-            json_object = json.load(openfile)
-
-        json_object.update(values)
-        with open(self.fname, 'w') as outfile:
-            json.dump(json_object, outfile, indent = 4, ensure_ascii = False)
-
-
-def init_logger(dirname = 'OutFiles', filename='logger.txt', level=logging.DEBUG):
-    fname =  dirname + '/' + get_current_date_time() + '_' + filename
-    return fname
-
-
-
-def write_config_files_json(dirname = 'OutFiles', filename='json_config.txt', var_list=print_var_list):
-    variables = globals()
-    jsonData = OrderedDict()
-    for var in var_list:
-        #ipdb.set_trace()
-        if var in print_var_list and var in variables:
-            jsonData[var] = variables[var]
-
-    filename =  dirname + '/' + get_current_date_time() + '_' + filename
-    with open(filename, 'w') as outfile:
-        json.dump(jsonData, outfile, sort_keys = True, indent = 4,
-                  ensure_ascii = False)
-
-    return jsonData
-
-def write_config_files(dirname = 'OutFiles', filename='config.txt', var_list=print_var_list):
-    variables = globals()
-    filename =  dirname + '/' + get_current_date_time() + '_' + filename
-    outfile = open(filename, 'w')
-    outfile.write("********** START CONFIG VALUES***********")
-    for var in var_list:
-        if var in print_var_list and var in variables:
-            outfile.write('{}={}\n'.format(var, str(variables[var])))
-
-    outfile.write("**********END CONFIG VALUES***********")
-    outfile.close()
-    return
 
 
 def normalize_data(x,axis=0, eps=1e-5):
@@ -131,9 +68,14 @@ class Agent():
                                            weight_decay=WEIGHT_DECAY)
 
         self.memory_buffer = ReplayBuffer(BUFFER_SIZE, BATCH_SIZE, random_seed)
-        self.noise = ULNoise(self.action_size, random_seed)
+        self.noise = ULNoise(self.action_size, random_seed, theta= UL_THETA, sigma=UL_SIGMA)
         self.nsteps = 0
         self.num_agents = num_agents
+        # write config files
+        variables = globals()
+        utils.write_config_files(variables, print_var_list,filename='config.txt')
+        json_config = utils.write_config_files_json(variables, print_var_list,filename='json_config.txt')
+
 
     def step(self, state, action, reward, next_state, done):
          #insert into the memory buffer
@@ -178,7 +120,7 @@ class Agent():
         Q_targets_next = self.critic_local(next_states, actions_next)
         Q_targets = rewards + (gamma * Q_targets_next * (1-dones))
         Q_expected = self.critic_local(states, actions)
-        Q_targets = Q_targets.detach()
+        # Q_targets = Q_targets.detach()
         critic_loss = F.mse_loss(Q_expected, Q_targets)
 
         # minimize loss
@@ -191,7 +133,7 @@ class Agent():
         # update the actor
         actions_pred = self.actor_local(states)
         # mean of the action_pred of that should be zero
-        actor_loss = -self.critic_local(states.detach(), actions_pred).mean()
+        actor_loss = -self.critic_local(states, actions_pred).mean()
         # minimise loss
         self.actor_optimizer.zero_grad()
         actor_loss.backward()
@@ -222,7 +164,7 @@ class ULNoise:
 
     def sample(self):
         x = self.state
-        dx = self.theta *(self.mu - x) + self.sigma * self.sigma * np.array([random.random() for i in range(len(x))])
+        dx = self.theta *(self.mu - x) + self.sigma * np.array([random.random() for i in range(len(x))])
         self.state = x + dx
         return self.state
 
