@@ -69,8 +69,6 @@ if watch_untrained_agent:
     print('Total score (averaged over agents) this episode: {}'.format(np.mean(scores)))
 
 
-ipdb.set_trace()
-
 ddpg_agent.write_config_files(filename='config.txt')
 json_config = ddpg_agent.write_config_files_json(filename='json_config.txt')
 log_fname = ddpg_agent.init_logger()

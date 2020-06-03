@@ -16,7 +16,7 @@ import json
 from datetime import datetime
 
 BUFFER_SIZE = int(1e6)
-BATCH_SIZE = 64
+BATCH_SIZE = 128
 GAMMA = 0.99
 TAU = 1e-3
 LR_ACTOR = 1e-4 # Learning rate of actor
@@ -25,8 +25,10 @@ WEIGHT_DECAY = 0.001 # L2 weight decay (regularization)
 clip_grad_value = 1.0
 LEARN_AFTER_N_STEPS = 20
 NUM_LEARN_STEPS = 10
+NOISE_DECAY=0.001
 
-print_var_list = ['BUFFER_SIZE', 'BATCH_SIZE', 'TAU', 'LR_ACTOR', 'LR_CRITIC', 'WEIGHT_DECAY', 'clip_grad_value', 'LEARN_AFTER_N_STEPS', 'NUM_LEARN_STEPS']
+print_var_list = ['BUFFER_SIZE', 'BATCH_SIZE', 'TAU', 'LR_ACTOR', 'LR_CRITIC', 'WEIGHT_DECAY', 'clip_grad_value', 'LEARN_AFTER_N_STEPS', 'NUM_LEARN_STEPS',
+                  'NOISE_DECAY']
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
@@ -138,11 +140,15 @@ class Agent():
         self.memory_buffer.add(state, action, reward, next_state, done)
         self.nsteps +=1
         if len(self.memory_buffer) > BATCH_SIZE:
-            experiences = self.memory_buffer.sample()
-            if self.nsteps % LEARN_AFTER_N_STEPS == 0:
-                for i in range(NUM_LEARN_STEPS):
-                    self.learn(experiences, GAMMA)
-
+            if self.num_agents == 1:
+                experiences = self.memory_buffer.sample()
+                self.learn(experiences, GAMMA)
+            else:
+                if self.nsteps % LEARN_AFTER_N_STEPS == 0:
+                    for i in range(NUM_LEARN_STEPS):
+                        experiences = self.memory_buffer.sample()
+                        self.learn(experiences, GAMMA)
+                        
     def act(self, state, add_noise=True):
         """what is the policy based on which it acts. at every step it acts"""
         # agent takes an action based on policy
@@ -154,6 +160,7 @@ class Agent():
         self.actor_local.train()
         if add_noise:
             action += self.noise.sample()
+            
         return np.clip(action, -1, 1)
 
     def reset(self):
@@ -215,7 +222,7 @@ class ULNoise:
 
     def sample(self):
         x = self.state
-        dx = self.theta *(self.mu - x) + self.sigma * np.random.rand(len(x))
+        dx = self.theta *(self.mu - x) + self.sigma * self.sigma * np.array([random.random() for i in range(len(x))])
         self.state = x + dx
         return self.state
 
