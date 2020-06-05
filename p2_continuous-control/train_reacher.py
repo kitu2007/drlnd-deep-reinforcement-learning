@@ -1,7 +1,3 @@
-
-
-
-
 import random
 import torch
 import numpy as np
@@ -21,8 +17,8 @@ import numpy as np
 
 # Instantiate the environmen
 #env = UnityEnvironment(file_name='Reacher1.app')
-#env = UnityEnvironment(file_name='Reacher1.app')
-env = UnityEnvironment(file_name='Reacher_Linux/Reacher.x86_64')
+env = UnityEnvironment(file_name='Reacher1.app')
+#env = UnityEnvironment(file_name='Reacher_Linux/Reacher.x86_64')
 #env = UnityEnvironment(file_name='Reacher_Linux_NoVis/Reacher.x86_64')
 
 # get the default brain
@@ -75,7 +71,7 @@ logging.basicConfig(filename=log_fname,level=logging.DEBUG)
 json_log = utils.json_logger(filename='json_logger.json')
 
 
-def ddpg(agent, n_episodes=20, max_t=600):
+def ddpg(agent, n_episodes=20, max_t=1000):
     """
     DDPG Agent
 
@@ -104,7 +100,7 @@ def ddpg(agent, n_episodes=20, max_t=600):
         scores_window.append(score)
         scores.append(score)
         mean_score = np.mean(scores_window) + 0.00001
-        
+
         print('\rEpisode {}\tAverage Score: {:.4f}'.format(i_episode, mean_score), end="")
         if i_episode % 10 == 0:
             print('\rEpisode {}\tAverage Score: {:.4f}'.format(i_episode, mean_score))
@@ -122,7 +118,7 @@ def ddpg(agent, n_episodes=20, max_t=600):
 
 
 
-agent = Agent(state_size, action_size, random_seed=2, num_agents=num_agents, use_batch_norm=True)
+agent = Agent(state_size, action_size, random_seed=2, num_agents=num_agents)
 
 
 if train_agent:

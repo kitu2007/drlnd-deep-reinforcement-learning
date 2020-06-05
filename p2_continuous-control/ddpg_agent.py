@@ -16,24 +16,28 @@ import json
 from datetime import datetime
 import utils
 
-BUFFER_SIZE = int(1e6)
+BUFFER_SIZE = int(1e5)
 BATCH_SIZE = 64
 GAMMA = 0.99
 TAU = 1e-3
 LR_ACTOR = 1e-4 # Learning rate of actor
-LR_CRITIC = 1e-3 # Learning rate of the critic
-WEIGHT_DECAY = 0.0001 # L2 weight decay (regularization)
+LR_CRITIC = 1e-4 # Learning rate of the critic
+WEIGHT_DECAY = 0 # L2 weight decay (regularization)
 clip_grad_value = 1.0
 LEARN_AFTER_N_STEPS = 20
 NUM_LEARN_STEPS = 10
 NOISE_DECAY=0.001
 UL_THETA = 0.15
-UL_SIGMA = 0.2
+UL_SIGMA = 0.1
+ACTOR_FC_LAYERS = [32,32]
+CRITIC_FC_LAYERS = [32,32]
+BN_AFTER_ACTIVATION = True
+USE_BATCH_NORM = True
+PRINT_GRADIENT = False
 
-print_var_list = ['BUFFER_SIZE', 'BATCH_SIZE', 'TAU', 'LR_ACTOR', 'LR_CRITIC', 'WEIGHT_DECAY', 'clip_grad_value', 'LEARN_AFTER_N_STEPS', 'NUM_LEARN_STEPS', 'NOISE_DECAY', 'UL_THETA', 'UL_SIGMA']
+print_var_list = ['BUFFER_SIZE', 'BATCH_SIZE', 'TAU', 'LR_ACTOR', 'LR_CRITIC', 'WEIGHT_DECAY', 'clip_grad_value', 'LEARN_AFTER_N_STEPS', 'NUM_LEARN_STEPS', 'NOISE_DECAY', 'UL_THETA', 'UL_SIGMA', 'ACTOR_FC_LAYERS', 'BN_AFTER_ACTIVATION']
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-
 
 
 def normalize_data(x,axis=0, eps=1e-5):
@@ -43,7 +47,7 @@ def normalize_data(x,axis=0, eps=1e-5):
     return x, mu, sigma
 
 class Agent():
-    def __init__(self, state_size, action_size, random_seed, num_agents, use_batch_norm):
+    def __init__(self, state_size, action_size, random_seed, num_agents):
         """
         Initialize an Agent Object
 
@@ -57,19 +61,27 @@ class Agent():
         self.action_size = action_size
         self.seed = random.seed(random_seed)
 
+        actor_kwargs = {'fc1': ACTOR_FC_LAYERS[0], 'fc2': ACTOR_FC_LAYERS[1],
+                        'use_batch_norm': USE_BATCH_NORM, 'bn_after_act':BN_AFTER_ACTIVATION}
+        critic_kwargs = {'fc1': CRITIC_FC_LAYERS[0], 'fc2': CRITIC_FC_LAYERS[1],
+                         'use_batch_norm': USE_BATCH_NORM, 'bn_after_act': BN_AFTER_ACTIVATION}
+        #actor_kwargs = {fc_layers= ACTOR_FC_LAYERS, 'use_batch_norm': use_batch_norm}
+        #critic_kwargs = {'fc_layers': CRITIC_FC_LAYERS, 'use_batch_norm': use_batch_norm}
 
-        self.actor_target = Actor(self.state_size, self.action_size, random_seed, use_batch_norm=use_batch_norm).to(device)
-        self.actor_local  = Actor(self.state_size, self.action_size, random_seed, use_batch_norm=use_batch_norm).to(device)
+        self.actor_target = Actor(self.state_size, self.action_size, random_seed,
+                                  **actor_kwargs).to(device)
+        self.actor_local  = Actor(self.state_size, self.action_size, random_seed, **actor_kwargs).to(device)
         self.actor_optimizer = optim.Adam(self.actor_local.parameters(), lr=LR_ACTOR)
 
-        self.critic_target = Critic(self.state_size, self.action_size, random_seed, use_batch_norm=use_batch_norm).to(device)
-        self.critic_local  = Critic(self.state_size, self.action_size, random_seed, use_batch_norm=use_batch_norm).to(device)
+        self.critic_target = Critic(self.state_size, self.action_size, random_seed, **critic_kwargs).to(device)
+        self.critic_local  = Critic(self.state_size, self.action_size, random_seed, **critic_kwargs).to(device)
         self.critic_optimizer = optim.Adam(self.critic_local.parameters(), lr=LR_CRITIC,
                                            weight_decay=WEIGHT_DECAY)
 
         self.memory_buffer = ReplayBuffer(BUFFER_SIZE, BATCH_SIZE, random_seed)
         self.noise = ULNoise(self.action_size, random_seed, theta= UL_THETA, sigma=UL_SIGMA)
         self.nsteps = 0
+        self.learn_steps = 0
         self.num_agents = num_agents
         # write config files
         variables = globals()
@@ -77,16 +89,20 @@ class Agent():
         json_config = utils.write_config_files_json(variables, print_var_list,filename='json_config.txt')
 
 
-    def step(self, state, action, reward, next_state, done):
-         #insert into the memory buffer
-        self.memory_buffer.add(state, action, reward, next_state, done)
+    def step(self, states, actions, rewards, next_states, dones):
+        #insert into the memory buffer
+        for state, action, reward, next_state, done in zip(states, actions, rewards, next_states, dones):
+            self.memory_buffer.add(state, action, reward, next_state, done)
+
         self.nsteps +=1
         if len(self.memory_buffer) > BATCH_SIZE:
             if self.num_agents == 1:
                 experiences = self.memory_buffer.sample()
+                self.learn_steps +=1
                 self.learn(experiences, GAMMA)
             else:
                 if self.nsteps % LEARN_AFTER_N_STEPS == 0:
+                    self.learn_steps +=1
                     for i in range(NUM_LEARN_STEPS):
                         experiences = self.memory_buffer.sample()
                         self.learn(experiences, GAMMA)
@@ -122,15 +138,20 @@ class Agent():
         Q_expected = self.critic_local(states, actions)
         # Q_targets = Q_targets.detach()
         critic_loss = F.mse_loss(Q_expected, Q_targets)
+        #ipdb.set_trace()
+        #ipdb.set_trace=lambda:None
 
+        #print("before max_gradient:", self.critic_local.fc1.weight.grad.max(), self.critic_local.fc2.weight.grad.max(), self.critic_local.fc3.weight.grad.max())
         # minimize loss
         self.critic_optimizer.zero_grad()
         critic_loss.backward()
+        if PRINT_GRADIENT:
+            print("before optimizer max_gradient:", self.critic_local.fc1.weight.grad.max(), self.critic_local.fc2.weight.grad.max(), self.critic_local.fc3.weight.grad.max())
         torch.nn.utils.clip_grad_norm_(self.critic_local.parameters(),clip_grad_value)
         self.critic_optimizer.step()
-
+        if PRINT_GRADIENT:
+            print("after optimizer  max_gradient:", self.critic_local.fc1.weight.grad.max(), self.critic_local.fc2.weight.grad.max(), self.critic_local.fc3.weight.grad.max())
         # ----- train the actor method
-        # update the actor
         actions_pred = self.actor_local(states)
         # mean of the action_pred of that should be zero
         actor_loss = -self.critic_local(states, actions_pred).mean()
@@ -147,7 +168,6 @@ class Agent():
 
     def soft_update(self, local_model, target_model, tau):
         """Update the networks"""
-
         for target_param, local_param in zip(target_model.parameters(), local_model.parameters()):
             target_param.data.copy_(tau*local_param.data + (1.0-tau)*target_param.data)
 
@@ -191,9 +211,8 @@ class ReplayBuffer:
 
     def add(self, state, action, reward, new_state, done):
         """insert an experience into the memory buffer"""
-        for i in range(state.shape[0]):
-            e = self.experience(state[i], action[i], reward[i], new_state[i], done[i])
-            self.memory.append(e)
+        e = self.experience(state, action, reward, new_state, done)
+        self.memory.append(e)
 
 
     def sample(self):
