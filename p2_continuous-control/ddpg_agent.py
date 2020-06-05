@@ -17,11 +17,11 @@ from datetime import datetime
 import utils
 
 BUFFER_SIZE = int(1e5)
-BATCH_SIZE = 64
+BATCH_SIZE = 128
 GAMMA = 0.99
 TAU = 1e-3
-LR_ACTOR = 1e-4 # Learning rate of actor
-LR_CRITIC = 1e-4 # Learning rate of the critic
+LR_ACTOR = 2e-4 # Learning rate of actor
+LR_CRITIC = 2e-4 # Learning rate of the critic
 WEIGHT_DECAY = 0 # L2 weight decay (regularization)
 clip_grad_value = 1.0
 LEARN_AFTER_N_STEPS = 20
@@ -35,9 +35,9 @@ BN_AFTER_ACTIVATION = True
 USE_BATCH_NORM = True
 BN_NORMALISE_STATE = False,
 PRINT_GRADIENT = False
+CLIP_GRADIENTS = False
 
-
-print_var_list = ['BUFFER_SIZE', 'BATCH_SIZE', 'TAU', 'LR_ACTOR', 'LR_CRITIC', 'WEIGHT_DECAY', 'clip_grad_value', 'LEARN_AFTER_N_STEPS', 'NUM_LEARN_STEPS', 'NOISE_DECAY', 'UL_THETA', 'UL_SIGMA', 'ACTOR_FC_LAYERS', 'BN_AFTER_ACTIVATION', 'BN_NORMALISE_STATE']
+print_var_list = ['BUFFER_SIZE', 'BATCH_SIZE', 'TAU', 'LR_ACTOR', 'LR_CRITIC', 'WEIGHT_DECAY', 'clip_grad_value', 'LEARN_AFTER_N_STEPS', 'NUM_LEARN_STEPS', 'NOISE_DECAY', 'UL_THETA', 'UL_SIGMA', 'ACTOR_FC_LAYERS', 'BN_AFTER_ACTIVATION', 'BN_NORMALISE_STATE', 'CLIP_GRADIENTS']
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
@@ -151,7 +151,8 @@ class Agent():
         critic_loss.backward()
         if PRINT_GRADIENT:
             print("before optimizer max_gradient:", self.critic_local.fc1.weight.grad.max(), self.critic_local.fc2.weight.grad.max(), self.critic_local.fc3.weight.grad.max())
-        torch.nn.utils.clip_grad_norm_(self.critic_local.parameters(),clip_grad_value)
+        if CLIP_GRADIENTS:
+            torch.nn.utils.clip_grad_norm_(self.critic_local.parameters(),clip_grad_value)
         self.critic_optimizer.step()
         if PRINT_GRADIENT:
             print("after optimizer  max_gradient:", self.critic_local.fc1.weight.grad.max(), self.critic_local.fc2.weight.grad.max(), self.critic_local.fc3.weight.grad.max())
