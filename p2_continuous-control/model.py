@@ -19,16 +19,18 @@ def bn_func(fn, batch_norm=False):
 
 class Critic(nn.Module):
     """given a state and action it will give a value"""
-    def __init__(self, state_size, action_size, seed, fc1=400, fc2=300, use_batch_norm = False, bn_after_act=False):
+    def __init__(self, state_size, action_size, seed, fc1=400, fc2=300, use_batch_norm = False, bn_after_act=False, bn_normalize_state=False):
         super(Critic,self).__init__()
         self.seed = torch.manual_seed(seed)
         self.use_batch_norm = use_batch_norm
         self.bn_after_act = bn_after_act
+        self.bn_normalize_state = bn_normalize_state
         self.fc1 = nn.Linear(state_size, fc1)
         self.fc2 = nn.Linear(fc1+action_size, fc2)
         self.fc3 = nn.Linear(fc2,1)
         if self.use_batch_norm:
-            self.bn0 = nn.BatchNorm1d(state_size)
+            if self.bn_normalize_state:
+                self.bn0 = nn.BatchNorm1d(state_size)
             self.bn1 = nn.BatchNorm1d(fc1)
         self.reset_parameters()
 
@@ -39,13 +41,15 @@ class Critic(nn.Module):
 
     def forward(self, state, action):
         if self.use_batch_norm:
+            if self.bn_normalize_state:
+                state = self.bn0(state)
             if self.bn_after_act:
-                  xs = self.bn1(F.relu(self.fc1(self.bn0(state))))
+                  xs = self.bn1(F.relu(self.fc1(state)))
                   x = torch.cat((xs, action), dim=1)
                   x = F.relu(self.fc2(x))
             else:
                 # this is the normal way to apply batch norm (before activation)
-                xs = F.relu(self.bn1(self.fc1(self.bn0(state))))
+                xs = F.relu(self.bn1(self.fc1(state)))
                 x = torch.cat((xs, action), dim=1)
                 x = F.relu(self.fc2(x))
         else:
@@ -58,16 +62,18 @@ class Critic(nn.Module):
 class Actor(nn.Module):
     """Given a state it will propose an action"""
 
-    def __init__(self, state_size, action_size, seed, fc1=400, fc2=300, use_batch_norm=False, bn_after_act=False):
+    def __init__(self, state_size, action_size, seed, fc1=400, fc2=300, use_batch_norm=False, bn_after_act=False, bn_normalize_state = False):
         super(Actor, self).__init__()
         self.seed = torch.manual_seed(seed)
         self.use_batch_norm = use_batch_norm
         self.bn_after_act = bn_after_act
+        self.bn_normalize_state = bn_normalize_state
         self.fc1 = nn.Linear(state_size,fc1)
         self.fc2 = nn.Linear(fc1,fc2)
         self.fc3 = nn.Linear(fc2,action_size)
         if self.use_batch_norm:
-            self.bn0 = nn.BatchNorm1d(state_size)
+            if self.bn_normalize_state:
+                self.bn0 = nn.BatchNorm1d(state_size)
             self.bn1 = nn.BatchNorm1d(fc1)
             self.bn2 = nn.BatchNorm1d(fc2)
         self.reset_parameters()
@@ -79,12 +85,14 @@ class Actor(nn.Module):
 
     def forward(self, state):
         if self.use_batch_norm:
+            if self.bn_normalize_state:
+                state = self.bn0(state)
             if self.bn_after_act:
-                x = self.bn1(F.relu(self.fc1(self.bn0(state))))
+                x = self.bn1(F.relu(self.fc1(state)))
                 x = self.bn2(F.relu(self.fc2(x)))
             else:
                 # this is the normal way to apply batch norm (before activation)
-                x = F.relu(self.bn1(self.fc1(self.bn0(state))))
+                x = F.relu(self.bn1(self.fc1(state)))
                 x = F.relu(self.bn2(self.fc2(x)))
         else:
             x = F.relu(self.fc1(state))

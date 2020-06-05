@@ -29,13 +29,15 @@ NUM_LEARN_STEPS = 10
 NOISE_DECAY=0.001
 UL_THETA = 0.15
 UL_SIGMA = 0.1
-ACTOR_FC_LAYERS = [32,32]
-CRITIC_FC_LAYERS = [32,32]
+ACTOR_FC_LAYERS = [128,128]
+CRITIC_FC_LAYERS = [128,128]
 BN_AFTER_ACTIVATION = True
 USE_BATCH_NORM = True
+BN_NORMALISE_STATE = False,
 PRINT_GRADIENT = False
 
-print_var_list = ['BUFFER_SIZE', 'BATCH_SIZE', 'TAU', 'LR_ACTOR', 'LR_CRITIC', 'WEIGHT_DECAY', 'clip_grad_value', 'LEARN_AFTER_N_STEPS', 'NUM_LEARN_STEPS', 'NOISE_DECAY', 'UL_THETA', 'UL_SIGMA', 'ACTOR_FC_LAYERS', 'BN_AFTER_ACTIVATION']
+
+print_var_list = ['BUFFER_SIZE', 'BATCH_SIZE', 'TAU', 'LR_ACTOR', 'LR_CRITIC', 'WEIGHT_DECAY', 'clip_grad_value', 'LEARN_AFTER_N_STEPS', 'NUM_LEARN_STEPS', 'NOISE_DECAY', 'UL_THETA', 'UL_SIGMA', 'ACTOR_FC_LAYERS', 'BN_AFTER_ACTIVATION', 'BN_NORMALISE_STATE']
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
@@ -62,9 +64,11 @@ class Agent():
         self.seed = random.seed(random_seed)
 
         actor_kwargs = {'fc1': ACTOR_FC_LAYERS[0], 'fc2': ACTOR_FC_LAYERS[1],
-                        'use_batch_norm': USE_BATCH_NORM, 'bn_after_act':BN_AFTER_ACTIVATION}
+                        'use_batch_norm': USE_BATCH_NORM, 'bn_after_act':BN_AFTER_ACTIVATION,
+                        'bn_normalize_state': BN_NORMALISE_STATE}
         critic_kwargs = {'fc1': CRITIC_FC_LAYERS[0], 'fc2': CRITIC_FC_LAYERS[1],
-                         'use_batch_norm': USE_BATCH_NORM, 'bn_after_act': BN_AFTER_ACTIVATION}
+                         'use_batch_norm': USE_BATCH_NORM, 'bn_after_act': BN_AFTER_ACTIVATION,
+                         'bn_normalize_state': BN_NORMALISE_STATE}
         #actor_kwargs = {fc_layers= ACTOR_FC_LAYERS, 'use_batch_norm': use_batch_norm}
         #critic_kwargs = {'fc_layers': CRITIC_FC_LAYERS, 'use_batch_norm': use_batch_norm}
 
