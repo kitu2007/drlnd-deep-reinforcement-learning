@@ -85,7 +85,6 @@ def ddpg(agent, n_episodes=20, max_t=1000):
         agent.reset()
         for t in range(max_t):
             actions  = agent.act(states)
-            actions = np.clip(actions, -1, 1)
             env_info = env.step(actions)[brain_name]
             rewards = env_info.rewards
             score += env_info.rewards
@@ -99,11 +98,55 @@ def ddpg(agent, n_episodes=20, max_t=1000):
 
         scores_window.append(score)
         scores.append(score)
-        mean_score = np.mean(scores_window) + 0.00001
+        mean_score = np.mean(scores_window)
 
-        print('\rEpisode {}\tAverage Score: {:.4f}'.format(i_episode, mean_score), end="")
+        print('\rEpisode {}\tAverage Score: {:.4f} Score: {:.4f}'.format(i_episode, mean_score, score.mean()), end="")
         if i_episode % 10 == 0:
-            print('\rEpisode {}\tAverage Score: {:.4f}'.format(i_episode, mean_score))
+            print('\rEpisode {}\tAverage Score: {:.4f} Score: {:.4f}'.format(i_episode, mean_score, score.mean()))
+            json_log.update({i_episode:mean_score})
+            #logging.info('\rEpisode {}\tAverage Score: {:.4f}'.format(i_episode, mean_score))
+
+            #print(scores_window)
+        if np.mean(scores_window)>=30.0:
+            print('\nEnvironment solved in {:d} episodes!\tAverage Score: {:.4f}'.format(i_episode-100, np.mean(scores_window)))
+            torch.save(agent.actor_local.state_dict(), 'actor_checkpoint_1.pth')
+            torch.save(agent.critic_local.state_dict(), 'critic_checkpoint_1.pth')
+            break
+    return scores
+
+
+def ddpg_1(agent, n_episodes=20, max_t=1000):
+    """
+    DDPG Agent for one agent
+
+    """
+    scores = list() #np.zeros(num_agents)
+    scores_window = deque(maxlen=100)
+    for i_episode in range(1, n_episodes+1):
+        env_info = env.reset(train_mode=True)[brain_name]
+        state = env_info.vector_observations[0]
+        agent.reset()
+        score = 0
+        for t in range(max_t):
+            action  = agent.act(state[np.newaxis,:])
+            env_info = env.step(action)[brain_name]
+            reward = env_info.rewards[0]
+            next_state = env_info.vector_observations[0]
+            done = env_info.local_done[0]
+            agent.step(state, action, reward, next_state, done)
+            state = next_state
+            score += reward
+            if done:
+                break
+
+        scores_window.append(score)
+        scores.append(score)
+        mean_score = np.mean(scores_window)
+
+        print('\rEpisode {}\tAverage Score: {:.4f} Score: {:.4f}'.format(i_episode, mean_score, score), end="")
+        if i_episode % 10 == 0:
+            print('\rEpisode {}\tAverage Score: {:.4f} Score: {:.4f}'.format(i_episode, mean_score, score))
+            ipdb.set_trace()
             json_log.update({i_episode:mean_score})
             #logging.info('\rEpisode {}\tAverage Score: {:.4f}'.format(i_episode, mean_score))
 
@@ -117,12 +160,11 @@ def ddpg(agent, n_episodes=20, max_t=1000):
 
 
 
-
-agent = Agent(state_size, action_size, random_seed=2, num_agents=num_agents)
+agent = Agent(state_size, action_size, random_seed=10, num_agents=num_agents)
 
 
 if train_agent:
-    scores = ddpg(agent, n_episodes=10000)
+    scores = ddpg(agent, n_episodes=1500)
     ipdb.set_trace()
     #plot the scores.
     fig = plt.figure()
@@ -132,3 +174,5 @@ if train_agent:
     plt.ylabel('Score')
     plt.xlabel('Episode #')
     plt.show()
+
+env.close()

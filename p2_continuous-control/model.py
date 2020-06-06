@@ -10,13 +10,6 @@ def hidden_init(layer):
     lim = 1.0 / np.sqrt(fan_in)
     return (-lim, lim)
 
-def bn_func(fn, batch_norm=False):
-    if batch_norm:
-        return fn
-    else:
-        return lambda x:x
-
-
 class Critic(nn.Module):
     """given a state and action it will give a value"""
     def __init__(self, state_size, action_size, seed, fc1=400, fc2=300, use_batch_norm = False, bn_after_act=False, bn_normalize_state=False):
@@ -25,6 +18,7 @@ class Critic(nn.Module):
         self.use_batch_norm = use_batch_norm
         self.bn_after_act = bn_after_act
         self.bn_normalize_state = bn_normalize_state
+
         self.fc1 = nn.Linear(state_size, fc1)
         self.fc2 = nn.Linear(fc1+action_size, fc2)
         self.fc3 = nn.Linear(fc2,1)
@@ -68,9 +62,11 @@ class Actor(nn.Module):
         self.use_batch_norm = use_batch_norm
         self.bn_after_act = bn_after_act
         self.bn_normalize_state = bn_normalize_state
+
         self.fc1 = nn.Linear(state_size,fc1)
         self.fc2 = nn.Linear(fc1,fc2)
         self.fc3 = nn.Linear(fc2,action_size)
+
         if self.use_batch_norm:
             if self.bn_normalize_state:
                 self.bn0 = nn.BatchNorm1d(state_size)

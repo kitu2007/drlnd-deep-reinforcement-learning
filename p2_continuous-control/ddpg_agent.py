@@ -33,9 +33,9 @@ ACTOR_FC_LAYERS = [128,128]
 CRITIC_FC_LAYERS = [128,128]
 BN_AFTER_ACTIVATION = True
 USE_BATCH_NORM = True
-BN_NORMALISE_STATE = False,
-PRINT_GRADIENT = False
-CLIP_GRADIENTS = False
+BN_NORMALISE_STATE = False
+PRINT_GRADIENT = True
+CLIP_GRADIENTS = True
 
 print_var_list = ['BUFFER_SIZE', 'BATCH_SIZE', 'TAU', 'LR_ACTOR', 'LR_CRITIC', 'WEIGHT_DECAY', 'clip_grad_value', 'LEARN_AFTER_N_STEPS', 'NUM_LEARN_STEPS', 'NOISE_DECAY', 'UL_THETA', 'UL_SIGMA', 'ACTOR_FC_LAYERS', 'BN_AFTER_ACTIVATION', 'BN_NORMALISE_STATE', 'CLIP_GRADIENTS']
 
@@ -75,12 +75,22 @@ class Agent():
         self.actor_target = Actor(self.state_size, self.action_size, random_seed,
                                   **actor_kwargs).to(device)
         self.actor_local  = Actor(self.state_size, self.action_size, random_seed, **actor_kwargs).to(device)
+
         self.actor_optimizer = optim.Adam(self.actor_local.parameters(), lr=LR_ACTOR)
+
+        for target, local in zip(self.actor_target.parameters(), self.actor_local.parameters()):
+            target.data.copy_(local.data)
+            
+        
 
         self.critic_target = Critic(self.state_size, self.action_size, random_seed, **critic_kwargs).to(device)
         self.critic_local  = Critic(self.state_size, self.action_size, random_seed, **critic_kwargs).to(device)
         self.critic_optimizer = optim.Adam(self.critic_local.parameters(), lr=LR_CRITIC,
                                            weight_decay=WEIGHT_DECAY)
+
+        for target, local in zip(self.critic_target.parameters(), self.critic_local.parameters()):
+
+            target.data.copy_(local.data)
 
         self.memory_buffer = ReplayBuffer(BUFFER_SIZE, BATCH_SIZE, random_seed)
         self.noise = ULNoise(self.action_size, random_seed, theta= UL_THETA, sigma=UL_SIGMA)
@@ -95,21 +105,21 @@ class Agent():
 
     def step(self, states, actions, rewards, next_states, dones):
         #insert into the memory buffer
-        for state, action, reward, next_state, done in zip(states, actions, rewards, next_states, dones):
-            self.memory_buffer.add(state, action, reward, next_state, done)
-
         self.nsteps +=1
-        if len(self.memory_buffer) > BATCH_SIZE:
-            if self.num_agents == 1:
+        if self.num_agents == 1:
+            self.memory_buffer.add(states, actions, rewards, next_states, dones)
+            if len(self.memory_buffer) > BATCH_SIZE:
                 experiences = self.memory_buffer.sample()
                 self.learn_steps +=1
                 self.learn(experiences, GAMMA)
-            else:
-                if self.nsteps % LEARN_AFTER_N_STEPS == 0:
-                    self.learn_steps +=1
-                    for i in range(NUM_LEARN_STEPS):
-                        experiences = self.memory_buffer.sample()
-                        self.learn(experiences, GAMMA)
+        else:
+            for state, action, reward, next_state, done in zip(states, actions, rewards, next_states, dones):
+                self.memory_buffer.add(state, action, reward, next_state, done)
+            if len(self.memory_buffer) > BATCH_SIZE and self.nsteps % LEARN_AFTER_N_STEPS == 0:
+                self.learn_steps +=1
+                for i in range(NUM_LEARN_STEPS):
+                    experiences = self.memory_buffer.sample()
+                    self.learn(experiences, GAMMA)
                         
     def act(self, state, add_noise=True):
         """what is the policy based on which it acts. at every step it acts"""
@@ -137,7 +147,7 @@ class Agent():
 
         # ----- train the critic method
         actions_next = self.actor_target(next_states)
-        Q_targets_next = self.critic_local(next_states, actions_next)
+        Q_targets_next = self.critic_target(next_states, actions_next)
         Q_targets = rewards + (gamma * Q_targets_next * (1-dones))
         Q_expected = self.critic_local(states, actions)
         # Q_targets = Q_targets.detach()
@@ -145,17 +155,20 @@ class Agent():
         #ipdb.set_trace()
         #ipdb.set_trace=lambda:None
 
-        #print("before max_gradient:", self.critic_local.fc1.weight.grad.max(), self.critic_local.fc2.weight.grad.max(), self.critic_local.fc3.weight.grad.max())
+        #print("before max_gradient:", self.critic_local.fc1.weight.grad.norm(), self.critic_local.fc2.weight.grad.norm(), self.critic_local.fc3.weight.grad.norm())
         # minimize loss
         self.critic_optimizer.zero_grad()
         critic_loss.backward()
-        if PRINT_GRADIENT:
-            print("before optimizer max_gradient:", self.critic_local.fc1.weight.grad.max(), self.critic_local.fc2.weight.grad.max(), self.critic_local.fc3.weight.grad.max())
+        if PRINT_GRADIENT and (self.nsteps % 1000) == 0:
+            print("nsteps: {} critic optimizer max_gradient:", self.nsteps, self.critic_local.fc1.weight.grad.norm(), self.critic_local.fc2.weight.grad.norm(), self.critic_local.fc3.weight.grad.norm())
+
         if CLIP_GRADIENTS:
             torch.nn.utils.clip_grad_norm_(self.critic_local.parameters(),clip_grad_value)
         self.critic_optimizer.step()
-        if PRINT_GRADIENT:
-            print("after optimizer  max_gradient:", self.critic_local.fc1.weight.grad.max(), self.critic_local.fc2.weight.grad.max(), self.critic_local.fc3.weight.grad.max())
+        
+        if PRINT_GRADIENT and (self.nsteps % 1000) == 0 :
+            print("nsteps: {} Actor optimizer  max_gradient:", self.nsteps, self.actor_local.fc1.weight.grad.norm(), self.actor_local.fc2.weight.grad.norm(), self.actor_local.fc3.weight.grad.norm())
+
         # ----- train the actor method
         actions_pred = self.actor_local(states)
         # mean of the action_pred of that should be zero
